@@ -58,7 +58,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 	public SessionDescription generateOffer(String callId, RequestMethod method) {
 		SessionDescription offer = createSdp();
 		logger.info("{} generating offer {{}} in context of call invitation {} for a {} request...",
-				NoOperationSipuadaPlugin.class.getName(), offer.toString(), callId, method);
+				NoOperationSipuadaPlugin.class.getName(), offer, callId, method);
 		records.put(callId, new Record(offer));
 		return offer;
 	}
@@ -68,7 +68,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		Record record = records.get(callId);
 		record.setAnswer(answer);
 		logger.info("{} received answer {{}} to offer {{}} in context of call invitation {}...",
-				NoOperationSipuadaPlugin.class.getName(), answer.toString(), record.getOffer(), callId);
+				NoOperationSipuadaPlugin.class.getName(), answer, record.getOffer(), callId);
 	}
 
 	@Override
@@ -76,7 +76,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		SessionDescription answer = createSdp();
 		records.put(callId, new Record(offer, answer));
 		logger.info("{} generating answer {{}} to offer {{}} in context of call invitation {} for a {} request...",
-				NoOperationSipuadaPlugin.class.getName(), answer.toString(), offer.toString(), callId, method);
+				NoOperationSipuadaPlugin.class.getName(), answer, offer, callId, method);
 		return answer;
 	}
 
@@ -85,7 +85,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		Record record = records.get(callId);
 		SessionDescription offer = record.getOffer(), answer = record.getAnswer();
 		logger.info("{} performing session setup in context of call {}...\nOffer: {{}}\nAnswer: {{}}",
-				NoOperationSipuadaPlugin.class.getName(), callId, offer.toString(), answer.toString());
+				NoOperationSipuadaPlugin.class.getName(), callId, offer, answer);
 		return false;
 	}
 
