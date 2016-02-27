@@ -10,14 +10,10 @@ import org.github.sipuada.plugins.SipuadaPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import android.gov.nist.gnjvx.sdp.MediaDescriptionImpl;
-import android.gov.nist.gnjvx.sdp.fields.AttributeField;
 import android.gov.nist.gnjvx.sdp.fields.ConnectionField;
-import android.gov.nist.gnjvx.sdp.fields.MediaField;
 import android.gov.nist.gnjvx.sdp.fields.OriginField;
 import android.gov.nist.gnjvx.sdp.fields.SDPKeywords;
 import android.gov.nist.gnjvx.sdp.fields.SessionNameField;
-import android.javax.sdp.SdpConstants;
 import android.javax.sdp.SdpException;
 import android.javax.sdp.SdpFactory;
 import android.javax.sdp.SessionDescription;
@@ -86,7 +82,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		SessionDescription offer = record.getOffer(), answer = record.getAnswer();
 		logger.info("{} performing session setup in context of call {}...\nOffer: {{}}\nAnswer: {{}}",
 				NoOperationSipuadaPlugin.class.getName(), callId, offer, answer);
-		return false;
+		return true;
 	}
 
 	@Override
@@ -94,18 +90,12 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		logger.info("{} performing session tear down in context of call {}...",
 				NoOperationSipuadaPlugin.class.getName(), callId);
 		records.remove(callId);
-		return false;
+		return true;
 	}
 
 	private SessionDescription createSdp() {
-		SessionDescription sdp;
 		try {
-			sdp = SdpFactory.getInstance().createSessionDescription();
-		} catch (SdpException e) {
-			e.printStackTrace();
-			return null;
-		}
-		try {
+			SessionDescription sdp = SdpFactory.getInstance().createSessionDescription();
 			String sessionName = "-", localIpAddress = "192.168.130.207";
 			long sessionId = (long) Math.random() * 100000000L;
 			long sessionVersion = sessionId;
@@ -116,53 +106,20 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 			originField.setNetworkType(SDPKeywords.IN);
 			originField.setAddressType(SDPKeywords.IPV4);
 			originField.setAddress(localIpAddress);
-	
 			SessionNameField sessionNameField = new SessionNameField();
 			sessionNameField.setSessionName(sessionName);
-	
 			ConnectionField connectionField = new ConnectionField();
 			connectionField.setNetworkType(SDPKeywords.IN);
 			connectionField.setAddressType(SDPKeywords.IPV4);
 			connectionField.setAddress(localIpAddress);
-	
-			Vector<Object> mediaDescriptions = new Vector<>();
-	
-			MediaField audioField = new MediaField();
-			audioField.setMediaType("audio");
-			audioField.setPort(8080);
-			audioField.setProtocol(SdpConstants.RTP_AVP);
-	
-			Vector<String> audioFormats = new Vector<String>();
-			audioFormats.add(Integer.toString(SdpConstants.PCMA));
-			audioField.setMediaFormats(audioFormats);
-	
-			MediaDescriptionImpl audioDescription = new MediaDescriptionImpl();
-	
-			AttributeField attributeField = new AttributeField();
-			attributeField.setName(SdpConstants.RTPMAP);
-			attributeField.setValue(String.format("%d %s/%d", SdpConstants.PCMA, "PCMA", 8000));
-			audioDescription.addAttribute(attributeField);
-	
-			AttributeField sendReceive = new AttributeField();
-			sendReceive.setValue("sendrecv");
-			audioDescription.addAttribute(sendReceive);
-	
-			AttributeField rtcpAttribute = new AttributeField();
-			rtcpAttribute.setName("rtcp");
-			rtcpAttribute.setValue("38219");
-			audioDescription.addAttribute(rtcpAttribute);
-	
-			mediaDescriptions.add(audioField);
-			mediaDescriptions.add(audioDescription);
-	
 			sdp.setOrigin(originField);
 			sdp.setSessionName(sessionNameField);
 			sdp.setConnection(connectionField);
-			sdp.setMediaDescriptions(mediaDescriptions);
-		} catch (SdpException sdpException) {
-			sdpException.printStackTrace();
+			sdp.setMediaDescriptions(new Vector<>());
+			return sdp;
+		} catch (SdpException unexpectedException) {
+			return null;
 		}
-		return sdp;
 	}
 
 }
