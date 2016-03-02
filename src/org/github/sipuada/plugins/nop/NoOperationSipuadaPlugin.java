@@ -51,7 +51,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 	}
 
 	@Override
-	public SessionDescription generateOffer(String callId, RequestMethod method) {
+	public SessionDescription generateOffer(String callId, RequestMethod method, String localAddress) {
 		SessionDescription offer = createSdp();
 		logger.info("{} generating offer {{}} in context of call invitation {} for a {} request...",
 				NoOperationSipuadaPlugin.class.getName(), offer, callId, method);
@@ -68,7 +68,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 	}
 
 	@Override
-	public SessionDescription generateAnswer(String callId, RequestMethod method, SessionDescription offer) {
+	public SessionDescription generateAnswer(String callId, RequestMethod method, SessionDescription offer, String localAddress) {
 		SessionDescription answer = createSdp();
 		records.put(callId, new Record(offer, answer));
 		logger.info("{} generating answer {{}} to offer {{}} in context of call invitation {} for a {} request...",
