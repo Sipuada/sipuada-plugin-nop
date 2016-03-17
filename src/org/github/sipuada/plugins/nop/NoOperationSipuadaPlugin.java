@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Vector;
 
 import org.github.sipuada.Constants.RequestMethod;
-import org.github.sipuada.UserAgent;
+import org.github.sipuada.SipUserAgent;
 import org.github.sipuada.plugins.SipuadaPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,7 +77,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 	}
 
 	@Override
-	public boolean performSessionSetup(String callId, UserAgent userAgent) {
+	public boolean performSessionSetup(String callId, SipUserAgent userAgent) {
 		Record record = records.get(callId);
 		SessionDescription offer = record.getOffer(), answer = record.getAnswer();
 		logger.info("{} performing session setup in context of call {}...\nOffer: {{}}\nAnswer: {{}}",
