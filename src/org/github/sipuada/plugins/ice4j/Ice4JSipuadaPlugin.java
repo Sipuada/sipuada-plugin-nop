@@ -1,4 +1,4 @@
-package org.github.sipuada.plugins.nop;
+package org.github.sipuada.plugins.ice4j;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -22,16 +22,16 @@ import org.ice4j.ice.IceMediaStream;
 import org.ice4j.ice.IceProcessingState;
 import org.ice4j.ice.harvest.StunCandidateHarvester;
 import org.ice4j.socket.IceSocketWrapper;
+import org.ice4j.test.SdpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import android.javax.sdp.SdpFactory;
 import android.javax.sdp.SessionDescription;
-import test.SdpUtils;
 
-public class NoOperationSipuadaPlugin implements SipuadaPlugin {
+public class Ice4JSipuadaPlugin implements SipuadaPlugin {
 
-	private final Logger logger = LoggerFactory.getLogger(NoOperationSipuadaPlugin.class);
+	private final Logger logger = LoggerFactory.getLogger(Ice4JSipuadaPlugin.class);
 
 	class Record {
 		Map<String, SessionDescription> storage = new HashMap<>();
@@ -58,8 +58,8 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 	private final Map<String, Record> records = new HashMap<>();
 	private final Map<String, Agent> agents = new HashMap<>();
 
-	public NoOperationSipuadaPlugin() {
-		logger.info("{} sipuada plugin instantiated.", NoOperationSipuadaPlugin.class.getName());
+	public Ice4JSipuadaPlugin() {
+		logger.info("{} sipuada plugin instantiated.", Ice4JSipuadaPlugin.class.getName());
 	}
 
 	@Override
@@ -78,10 +78,10 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 					.createSessionDescriptionFromString(addressesSdp);
 			records.put(callId, new Record(offer));
 			logger.info("{} generating offer {{}} in context of call invitation {} for a {} request...",
-					NoOperationSipuadaPlugin.class.getName(), offer, callId, method);
+					Ice4JSipuadaPlugin.class.getName(), offer, callId, method);
 			return offer;
 		} catch (Throwable anyException) {
-			anyException.printStackTrace();
+			logger.error("Could not generate offer. Crash:", anyException);
 			return null;
 		}
 	}
@@ -94,10 +94,11 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		try {
 			SdpUtils.parseSDP(agent, answer.toString());
 		} catch (Exception anyException) {
+			logger.error("Could not receive answer to accepted offer. Crash:", anyException);
 			anyException.printStackTrace();
 		}
 		logger.info("{} received answer {{}} to offer {{}} in context of call invitation {}...",
-				NoOperationSipuadaPlugin.class.getName(), answer, record.getOffer(), callId);
+				Ice4JSipuadaPlugin.class.getName(), answer, record.getOffer(), callId);
 	}
 
 	@Override
@@ -117,10 +118,10 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 			records.put(callId, new Record(offer, answer));
 			SdpUtils.parseSDP(agent, offer.toString());
 			logger.info("{} generating answer {{}} to offer {{}} in context of call invitation {} for a {} request...",
-					NoOperationSipuadaPlugin.class.getName(), answer, offer, callId, method);
+					Ice4JSipuadaPlugin.class.getName(), answer, offer, callId, method);
 			return answer;
 		} catch (Throwable anyException) {
-			anyException.printStackTrace();
+			logger.error("Could not generate answer. Crash:", anyException);
 			return null;
 		}
 	}
@@ -157,8 +158,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 									wrapper.send(packetToSend);
 									logger.debug("UDP test packet sent!");
 								} catch (IOException couldNotSendTestPacket) {
-									logger.debug("UDP test packet could not be sent!");
-									couldNotSendTestPacket.printStackTrace();
+									logger.error("UDP test packet could not be sent!", couldNotSendTestPacket);
 								}
 								DatagramPacket packetToReceive = new DatagramPacket(bufferSent, 3);
 								try {
@@ -170,8 +170,7 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 									bufferReceived = Arrays.copyOfRange(bufferReceived, offset, offset + length);
 									logger.debug("UDP test packet received with seed: {}!", bufferReceived);
 								} catch (IOException couldNotReceivePacket) {
-									logger.debug("UDP test packet could not be received!");
-									couldNotReceivePacket.printStackTrace();
+									logger.error("UDP test packet could not be received!", couldNotReceivePacket);
 								}
 							}
 						}
@@ -182,47 +181,16 @@ public class NoOperationSipuadaPlugin implements SipuadaPlugin {
 		});
 		agent.startConnectivityEstablishment();
 		logger.info("{} performing session setup in context of call (agent started={}) {}...\nOffer: {{}}\nAnswer: {{}}",
-				NoOperationSipuadaPlugin.class.getName(), agent.isStarted(), callId, offer, answer);
+				Ice4JSipuadaPlugin.class.getName(), agent.isStarted(), callId, offer, answer);
 		return true;
 	}
 
 	@Override
 	public boolean performSessionTermination(String callId) {
-		Agent agent = agents.get(callId);
-		agent.free();
 		logger.info("{} performing session tear down in context of call {}...",
-				NoOperationSipuadaPlugin.class.getName(), callId);
+				Ice4JSipuadaPlugin.class.getName(), callId);
 		records.remove(callId);
 		return true;
 	}
-
-//	private SessionDescription createSdp(String localIpAddress) {
-//		try {
-//			SessionDescription sdp = SdpFactory.getInstance().createSessionDescription();
-//			String sessionName = "-";
-//			long sessionId = (long) Math.random() * 100000000L;
-//			long sessionVersion = sessionId;
-//			OriginField originField = new OriginField();
-//			originField.setUsername("NoOpSipuadaPlug-in");
-//			originField.setSessionId(sessionId);
-//			originField.setSessVersion(sessionVersion);
-//			originField.setNetworkType(SDPKeywords.IN);
-//			originField.setAddressType(SDPKeywords.IPV4);
-//			originField.setAddress(localIpAddress);
-//			SessionNameField sessionNameField = new SessionNameField();
-//			sessionNameField.setSessionName(sessionName);
-//			ConnectionField connectionField = new ConnectionField();
-//			connectionField.setNetworkType(SDPKeywords.IN);
-//			connectionField.setAddressType(SDPKeywords.IPV4);
-//			connectionField.setAddress(localIpAddress);
-//			sdp.setOrigin(originField);
-//			sdp.setSessionName(sessionNameField);
-//			sdp.setConnection(connectionField);
-//			sdp.setMediaDescriptions(new Vector<>());
-//			return sdp;
-//		} catch (SdpException unexpectedException) {
-//			return null;
-//		}
-//	}
 
 }
