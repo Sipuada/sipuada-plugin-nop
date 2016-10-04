@@ -1,4 +1,4 @@
-package org.github.sipuada.plugins.nop;
+package org.github.sipuada.plugins.audio;
 
 import java.util.HashMap;
 import java.util.Locale;
