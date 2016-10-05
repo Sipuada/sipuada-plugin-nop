@@ -131,7 +131,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 	public AudioSimulationSipuadaPlugin(String identifier) {
 		this.identifier = identifier;
 		logger.info("{} sipuada plugin for {} instantiated.",
-			AudioSimulationSipuadaPlugin.class.getName(), identifier);
+			AudioSimulationSipuadaPlugin.class.getSimpleName(), identifier);
 	}
 
 	@Override
@@ -142,20 +142,20 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			SessionDescription offer = createSdpOffer(localAddress);
 			records.put(callId, new Record(offer));
 			logger.info("{} generating offer {{}} in context of call invitation {} "
-				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getName(),
+				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				offer, callId, method);
 			try {
 				return includeOfferedMediaTypes(offer, localAddress);
 			} catch (Throwable anyIssue) {
     			logger.error("{} could not include supported media types into offer {{}} "
 					+ "in context of call invitation {} for a {} request...",
-					AudioSimulationSipuadaPlugin.class.getName(), offer, callId,
+					AudioSimulationSipuadaPlugin.class.getSimpleName(), offer, callId,
 					method, anyIssue);
     			return null;
 			}
 		} catch (Throwable anyIssue) {
 			logger.error("{} could not generate offer in context of call invitation {} "
-				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getName(),
+				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				callId, method, anyIssue);
 			return null;
 		}
@@ -167,14 +167,14 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		SessionDescription offer = record.getOffer();
 		record.setAnswer(answer);
 		logger.info("{} received answer {{}} to offer {{}} in context of call "
-			+ "invitation {}...", AudioSimulationSipuadaPlugin.class.getName(),
+			+ "invitation {}...", AudioSimulationSipuadaPlugin.class.getSimpleName(),
 			answer, offer, callId);
 		try {
 			prepareForSessionSetup(callId, offer, answer);
 		} catch (Throwable anyIssue) {
 			logger.error("{} could not prepare for session setup in "
 				+ "context of call invitation {}!",
-				AudioSimulationSipuadaPlugin.class.getName(), callId, anyIssue);
+				AudioSimulationSipuadaPlugin.class.getSimpleName(), callId, anyIssue);
 		}
 	}
 
@@ -187,21 +187,21 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
     		records.put(callId, new Record(offer, answer));
     		logger.info("{} generating answer {{}} to offer {{}} in context "
     			+ "of call invitation {} for a {} request...",
-    			AudioSimulationSipuadaPlugin.class.getName(),
+    			AudioSimulationSipuadaPlugin.class.getSimpleName(),
     			answer, offer, callId, method);
     		try {
         		return includeAcceptedMediaTypes(callId, answer, offer, localAddress);
     		} catch (Throwable anyIssue) {
     			logger.error("{} could not include accepted media types into answer {{}} "
 					+ "to offer {{}} in context of call invitation {} for a {} request...",
-					AudioSimulationSipuadaPlugin.class.getName(), answer, offer,
+					AudioSimulationSipuadaPlugin.class.getSimpleName(), answer, offer,
 					callId, method, anyIssue);
     			return null;
     		}
         } catch (Throwable anyIssue) {
 			logger.error("{} could not generate answer to offer {{}} in context of "
 				+ "call invitation {} for a {} request...",
-				AudioSimulationSipuadaPlugin.class.getName(),
+				AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				offer, callId, method, anyIssue);
 			return null;
         }
@@ -222,21 +222,21 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			long sessionVersion, String sessionName) throws SdpException {
 		SessionDescription sdp = SdpFactory.getInstance()
 			.createSessionDescription(localAddress);
-		OriginField originField = createOriginField(sdp, sessionId, sessionVersion);
+		OriginField originField = createOriginField(sessionId,
+			sessionVersion, localAddress);
 		sdp.setOrigin(originField);
-//		ConnectionField connectionField = createConnectionField(localAddress);
-//		sdp.setConnection(connectionField);
 		SessionNameField sessionNameField = createSessionNameField(sessionName);
 		sdp.setSessionName(sessionNameField);
 		return sdp;
 	}
 
-	private OriginField createOriginField(SessionDescription sdp,
-			long sessionId, long sessionVersion) throws SdpException {
+	private OriginField createOriginField(long sessionId, long sessionVersion,
+			String localAddress) throws SdpException {
 		OriginField originField = new OriginField();
 		originField.setSessionId(sessionId);
-		originField.setUsername(identifier);
 		originField.setSessionVersion(sessionVersion);
+		originField.setUsername(identifier);
+		originField.setAddress(localAddress);
 		originField.setNetworkType(SDPKeywords.IN);
 		originField.setAddressType(SDPKeywords.IPV4);
 		return originField;
@@ -278,12 +278,10 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			mediaField.setMedia("audio");
 			mediaField.setMediaType("audio");
 			mediaField.setProtocol(SdpConstants.RTP_AVP);
-			int localAudioPort = new Random().nextInt((32767 - 16384)) + 16384;
-			mediaField.setPort(localAudioPort);
+			int localPort = new Random().nextInt((32767 - 16384)) + 16384;
+			mediaField.setPort(localPort);
 			mediaDescription.setMediaField(mediaField);
-			AttributeField rtcpAttribute = new AttributeField();
-			rtcpAttribute.setName("rtcp");
-			rtcpAttribute.setValue(Integer.toString(localAudioPort));
+			AttributeField rtcpAttribute = createRtcpField(localAddress, localPort);
 			mediaDescription.addAttribute(rtcpAttribute);
 			AttributeField sendReceiveAttribute = new AttributeField();
 			sendReceiveAttribute.setValue("sendrecv");
@@ -296,6 +294,15 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		logger.info("<< {{}} codecs were declared in offer {{}} >>",
 			allMediaFormats, offer);
 		return offer;
+	}
+
+	private AttributeField createRtcpField(String localAddress, int localPort)
+			throws SdpException {
+		AttributeField rtcpAttribute = new AttributeField();
+		rtcpAttribute.setName("rtcp");
+		rtcpAttribute.setValue(String.format(Locale.US, "%d %s %s %s",
+			localPort, SDPKeywords.IN, SDPKeywords.IPV4, localAddress));
+		return rtcpAttribute;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -337,14 +344,13 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 							mediaField.setMedia("audio");
 							mediaField.setMediaType("audio");
 							mediaField.setProtocol(SdpConstants.RTP_AVP);
-							int localAudioPort = new Random().nextInt
+							int localPort = new Random().nextInt
 								((32767 - 16384)) + 16384;
-							mediaField.setPort(localAudioPort);
+							mediaField.setPort(localPort);
 							((MediaDescriptionImpl) cloneMediaDescription)
 								.setMediaField(mediaField);
-							AttributeField rtcpAttribute = new AttributeField();
-							rtcpAttribute.setName("rtcp");
-							rtcpAttribute.setValue(Integer.toString(localAudioPort));
+							AttributeField rtcpAttribute = createRtcpField
+								(localAddress, localPort);
 							cloneMediaDescription.addAttribute(rtcpAttribute);
 							AttributeField sendReceiveAttribute
 								= new AttributeField();
@@ -370,7 +376,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		} catch (Throwable anyIssue) {
 			logger.error("%% {} could not prepare for session setup in "
 				+ "context of call invitation {}! %%",
-				AudioSimulationSipuadaPlugin.class.getName(), callId, anyIssue);
+				AudioSimulationSipuadaPlugin.class.getSimpleName(), callId, anyIssue);
 		}
 		return answer;
 	}
@@ -385,6 +391,10 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		void onExtractionPartiallyFailed(Throwable anyIssue);
 
 		void onExtractionFailedCompletely(Throwable anyIssue);
+
+		String getRole();
+
+		String getSdpType();
 
 	}
 
@@ -407,7 +417,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			logger.error("%% {{}} as {} ignored extraction of {} "
 				+ "media description {{}} - code: {{}} as it "
 				+ "contained no connection info. %%",
-				AudioSimulationSipuadaPlugin.class.getName(),
+				AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				role, sdpType, rtpmap, codecType);
 		}
 
@@ -415,7 +425,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		public final void onExtractionPartiallyFailed(Throwable anyIssue) {
 			logger.error("%% {{}} as {} partially failed during "
 				+ "extraction of {} media description line. %%",
-				AudioSimulationSipuadaPlugin.class.getName(),
+				AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				role, sdpType, anyIssue);
 		}
 
@@ -423,8 +433,18 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		public final void onExtractionFailedCompletely(Throwable anyIssue) {
 			logger.error("%% {{}} as {} failed completely before "
 				+ "extraction of {} media description lines. %%",
-				AudioSimulationSipuadaPlugin.class.getName(),
+				AudioSimulationSipuadaPlugin.class.getSimpleName(),
 				role, sdpType, anyIssue);
+		}
+
+		@Override
+		public String getRole() {
+			return role;
+		}
+
+		@Override
+		public String getSdpType() {
+			return sdpType;
 		}
 
 	}
@@ -446,10 +466,8 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 					public void onConnectionInfoExtracted(final String offerAddress,
 							final int offerPort, final String offerRtpmap,
 							final int offerCodecType) {
-						if ((offerCodecType >= 0 && offerCodecType <= 34
-							|| offerCodecType == answerCodecType)
-							|| (offerRtpmap.toLowerCase().trim().equals
-								(answerRtpmap.toLowerCase().trim()))) {
+						if (offerRtpmap.toLowerCase().trim().equals
+								(answerRtpmap.toLowerCase().trim())) {
 							SupportedAudioCodec supportedAudioCodec = null;
 							for (SupportedAudioCodec supported
 									: SupportedAudioCodec.values()) {
@@ -460,11 +478,15 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 								}
 							}
 							if (supportedAudioCodec == null) {
-								logger.error("%% {} found a codec match but said"
-									+ " codec {} is not supported by this plugin! %%",
-									AudioSimulationSipuadaPlugin.class.getName(),
+								logger.error("%% {} FOUND A CODEC MATCH but said"
+									+ " codec {} is not supported by this plugin!(?!) %%",
+									AudioSimulationSipuadaPlugin.class.getSimpleName(),
 									answerRtpmap + " - " + answerCodecType);
 								return;
+							} else {
+								logger.error("%% {} FOUND A CODEC MATCH: {}! %%",
+									AudioSimulationSipuadaPlugin.class.getSimpleName(),
+									answerRtpmap + " - " + answerCodecType);
 							}
 							switch (roles.get(callId)) {
 								case CALLER:
@@ -490,15 +512,58 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 	@SuppressWarnings("unchecked")
 	private void extractConnectionInformation(SessionDescription sdp,
 			ExtractionCallback callback) {
-		final Connection parentConnection;
-		final String parentPort;
+		logger.debug("%% {} will extract connection info from {} sdp as {}! %%",
+			AudioSimulationSipuadaPlugin.class.getSimpleName(),
+			callback.getSdpType(), callback.getRole());
+		String possibleParentAddress = null;
+		String possibleParentPort = null;
+		try {
+			Connection connection = sdp.getConnection();
+			possibleParentPort = sdp.getAttribute("rtcp");
+			if (possibleParentPort != null) {
+				try {
+					Integer.parseInt(possibleParentPort);
+					if (connection != null) {
+						possibleParentAddress = sdp.getConnection().getAddress();
+					}
+				} catch (Throwable anyIssue) {
+					possibleParentAddress = possibleParentPort.split(" ")
+						[possibleParentPort.length() - 1].trim();
+					possibleParentPort = possibleParentPort.split(" ")[0].trim();
+					try {
+						for (int i=0; i<possibleParentAddress.length(); i++) {
+							char thisChar = possibleParentAddress.charAt(i);
+							if (!(thisChar == '.' || Character.isDigit(thisChar))) {
+								throw new Exception();
+							}
+						}
+						Integer.parseInt(possibleParentPort);
+					} catch (Throwable anyOtherIssue) {
+						possibleParentPort = null;
+					}
+				}
+			} else {
+				if (connection != null) {
+					possibleParentAddress = sdp.getConnection().getAddress();
+				}
+			}
+		} catch (Throwable ignore) {
+			logger.debug("%% {} could not find some parent connection info: {}:{}! %%",
+				AudioSimulationSipuadaPlugin.class.getSimpleName(),
+				possibleParentAddress, possibleParentPort);
+		}
+		final String parentAddress = possibleParentAddress;
+		final String parentPort = possibleParentPort;
 		final Vector<MediaDescription> mediaDescriptions;
 		try {
-			parentConnection = sdp.getConnection();
-			parentPort = sdp.getAttribute("rtcp");
 			mediaDescriptions = sdp.getMediaDescriptions(false);
 		} catch (Throwable anyIssue) {
 			callback.onExtractionFailedCompletely(anyIssue);
+			return;
+		}
+		if (mediaDescriptions == null) {
+			logger.debug("%% {} could not find any media descriptions! %%",
+				AudioSimulationSipuadaPlugin.class.getSimpleName());
 			return;
 		}
 		for (MediaDescription mediaDescription : mediaDescriptions) {
@@ -506,29 +571,39 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 				= ((MediaDescription) mediaDescription).getAttributes(false);
 			for (AttributeField attributeField : attributeFields) {
 				try {
+					logger.debug("%% Parsing attribute field line: {{}}... %%",
+						attributeField.toString().trim());
 					if (attributeField.getName() != null
 							&& attributeField.getName().equals(SdpConstants.RTPMAP)) {
+						logger.debug("%% It is a RTPMAP line! %%");
 						int codecType = Integer.parseInt(attributeField
 							.getValue().split(" ")[0].trim());
-							String rtpmap = attributeField.getValue()
-							.split(" ")[1].trim();
+						String rtpmap = attributeField.getValue().split(" ")[1].trim();
+						logger.debug("%% RTPMAP: {} --- CodecType: {}! %%",
+							rtpmap, codecType);
 						final Connection connection = mediaDescription.getConnection();
 						final Media media = mediaDescription.getMedia();
 						final String connectionAddress;
-						final int port;
-						if ((parentConnection == null || parentPort == null)
+						final int connectionPort;
+						if ((parentAddress == null || parentPort == null)
 								&& (connection == null || media == null)) {
 							callback.onExtractionIgnored(rtpmap, codecType);
 							continue;
 						} else if (connection == null) {
-							connectionAddress = parentConnection.getAddress();
-							port = Integer.parseInt(parentPort);
+							connectionAddress = parentAddress;
+							connectionPort = Integer.parseInt(parentPort);
+							logger.debug("%% RTPMAP line contains no connection info, "
+								+ "so using SDP parent connection: {}:{}! %%",
+								connectionAddress, connectionPort);
 						} else {
 							connectionAddress = connection.getAddress();
-							port = media.getMediaPort();
+							connectionPort = media.getMediaPort();
+							logger.debug("%% RTPMAP line contains connection info, "
+								+ "so using it: {}:{}! %%",
+								connectionAddress, connectionPort);
 						}
 						callback.onConnectionInfoExtracted
-							(connectionAddress, port, rtpmap, codecType);
+							(connectionAddress, connectionPort, rtpmap, codecType);
 					}
 				} catch (Throwable anyIssue) {
 					callback.onExtractionPartiallyFailed(anyIssue);
@@ -543,7 +618,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		SessionDescription offer = record.getOffer(), answer = record.getAnswer();
 		logger.info("^^ {} performing session setup in context of call {}...\n"
 			+ "Role: {{}}\nOffer: {{}}\nAnswer: {{}} ^^",
-			AudioSimulationSipuadaPlugin.class.getName(),
+			AudioSimulationSipuadaPlugin.class.getSimpleName(),
 			callId, roles.get(callId), offer, answer);
 		for (SupportedAudioCodec supportedAudioCodec : flows.keySet()) {
 			Session session = flows.get(supportedAudioCodec);
@@ -559,7 +634,7 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 	public boolean performSessionTermination(String callId) {
 		records.remove(callId);
 		logger.info("^^ {} performing session tear down in context of call {}... ^^",
-			AudioSimulationSipuadaPlugin.class.getName(), callId);
+			AudioSimulationSipuadaPlugin.class.getSimpleName(), callId);
 		for (SupportedAudioCodec supportedAudioCodec : flows.keySet()) {
 			Session session = flows.get(supportedAudioCodec);
 			logger.info("^^ Should terminate {} flow from "
