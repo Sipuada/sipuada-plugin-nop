@@ -63,68 +63,106 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
     private final Map<String, CallRole> roles = new HashMap<>();
 
     public enum SupportedAudioCodec {
-    	PCMA_8("PCMA/8000", 8, 8000),
-    	SPEEX_8("SPEEX/8000", 97, 8000),
-    	SPEEX_16("SPEEX/16000", 97, 16000),
-    	SPEEX_32("SPEEX/32000", 97, 32000);
 
-    	private final String rtpmap;
+    	PCMA_8("PCMA", 8, 8000, true),
+    	SPEEX_8("SPEEX", 97, 8000, true),
+    	SPEEX_16("SPEEX", 97, 16000, true),
+    	SPEEX_32("SPEEX", 97, 32000, true);
+
+    	private final String encoding;
     	private final int type;
-    	private final int frequency;
+    	private final int clockRate;
+    	private final boolean enabled;
 
-    	private SupportedAudioCodec(String rtpmap, int type, int frequency) {
-    		this.rtpmap = rtpmap;
+    	private SupportedAudioCodec(String encoding, int type,
+    			int clockRate, boolean enabled) {
+    		this.encoding = encoding;
     		this.type = type;
-    		this.frequency = frequency;
+    		this.clockRate = clockRate;
+    		this.enabled = enabled;
     	}
 
-		public String getRtpmap() {
-			return rtpmap;
-		}
+    	public String getEncoding() {
+    		return encoding;
+    	}
 
 		public int getType() {
 			return type;
 		}
 
-		public int getFrequency() {
-			return frequency;
+		public int getClockRate() {
+			return clockRate;
+		}
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public String getRtpmap() {
+			return String.format(Locale.US, "%s/%d", encoding, clockRate);
 		}
 
     }
     public class Session {
 
-    	private final String localAddress;
-    	private final int localPort;
-    	private final String remoteAddress;
-    	private final int remotePort;
+    	private final String localDataAddress;
+    	private final int localDataPort;
+    	private final String localControlAddress;
+    	private final int localControlPort;
+    	private final String remoteDataAddress;
+    	private final int remoteDataPort;
+    	private final String remoteControlAddress;
+    	private final int remoteControlPort;
 
-    	public Session(String localAddress, int localPort,
-    			String remoteAddress, int remotePort) {
+    	public Session(String localDataAddress, int localDataPort,
+    			String localControlAddress, int localControlPort,
+    			String remoteDataAddress, int remoteDataPort,
+    			String remoteControlAddress, int remoteControlPort) {
 			super();
-			this.localAddress = localAddress;
-			this.localPort = localPort;
-			this.remoteAddress = remoteAddress;
-			this.remotePort = remotePort;
+			this.localDataAddress = localDataAddress;
+			this.localDataPort = localDataPort;
+			this.localControlAddress = localControlAddress;
+			this.localControlPort = localControlPort;
+			this.remoteDataAddress = remoteDataAddress;
+			this.remoteDataPort = remoteDataPort;
+			this.remoteControlAddress = remoteControlAddress;
+			this.remoteControlPort = remoteControlPort;
 		}
 
-		public String getLocalAddress() {
-			return localAddress;
+		public String getLocalDataAddress() {
+			return localDataAddress;
 		}
 
-		public int getLocalPort() {
-			return localPort;
+		public int getLocalDataPort() {
+			return localDataPort;
 		}
 
-		public String getRemoteAddress() {
-			return remoteAddress;
+		public String getLocalControlAddress() {
+			return localControlAddress;
 		}
 
-		public int getRemotePort() {
-			return remotePort;
+		public int getLocalControlPort() {
+			return localControlPort;
+		}
+
+		public String getRemoteDataAddress() {
+			return remoteDataAddress;
+		}
+
+		public int getRemoteDataPort() {
+			return remoteDataPort;
+		}
+
+		public String getRemoteControlAddress() {
+			return remoteControlAddress;
+		}
+
+		public int getRemoteControlPort() {
+			return remoteControlPort;
 		}
 
     }
-    private final Map<SupportedAudioCodec, Session> flows = new HashMap<>();
+    private final Map<SupportedAudioCodec, Session> streams = new HashMap<>();
 
     private final String identifier;
 
@@ -142,21 +180,21 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			SessionDescription offer = createSdpOffer(localAddress);
 			records.put(callId, new Record(offer));
 			logger.info("{} generating offer {{}} in context of call invitation {} "
-				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getSimpleName(),
-				offer, callId, method);
+				+ "for a {} request...", AudioSimulationSipuadaPlugin.class
+				.getSimpleName(), offer, callId, method);
 			try {
 				return includeOfferedMediaTypes(offer, localAddress);
 			} catch (Throwable anyIssue) {
-    			logger.error("{} could not include supported media types into offer {{}} "
-					+ "in context of call invitation {} for a {} request...",
+    			logger.error("{} could not include supported media types into "
+					+ "offer {{}} in context of call invitation {} for a {} request...",
 					AudioSimulationSipuadaPlugin.class.getSimpleName(), offer, callId,
 					method, anyIssue);
     			return null;
 			}
 		} catch (Throwable anyIssue) {
-			logger.error("{} could not generate offer in context of call invitation {} "
-				+ "for a {} request...", AudioSimulationSipuadaPlugin.class.getSimpleName(),
-				callId, method, anyIssue);
+			logger.error("{} could not generate offer in context of call "
+				+ "invitation {} for a {} request...", AudioSimulationSipuadaPlugin
+				.class.getSimpleName(), callId, method, anyIssue);
 			return null;
 		}
 	}
@@ -192,10 +230,10 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
     		try {
         		return includeAcceptedMediaTypes(callId, answer, offer, localAddress);
     		} catch (Throwable anyIssue) {
-    			logger.error("{} could not include accepted media types into answer {{}} "
-					+ "to offer {{}} in context of call invitation {} for a {} request...",
-					AudioSimulationSipuadaPlugin.class.getSimpleName(), answer, offer,
-					callId, method, anyIssue);
+    			logger.error("{} could not include accepted media types "
+					+ "into answer {{}} to offer {{}} in context of call invitation"
+					+ " {} for a {} request...", AudioSimulationSipuadaPlugin
+					.class.getSimpleName(), answer, offer, callId, method, anyIssue);
     			return null;
     		}
         } catch (Throwable anyIssue) {
@@ -263,13 +301,16 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		Vector<String> allMediaFormats = new Vector<>();
 		Vector<MediaDescription> mediaDescriptions = new Vector<>();
 		for (SupportedAudioCodec audioCodec : SupportedAudioCodec.values()) {
-			final String codecType = Integer.toString(audioCodec.type);
+			if (!audioCodec.isEnabled()) {
+				continue;
+			}
+			final String codecType = Integer.toString(audioCodec.getType());
 			allMediaFormats.add(codecType);
 			MediaDescriptionImpl mediaDescription = new MediaDescriptionImpl();
 			AttributeField rtpmapAttributeField = new AttributeField();
 			rtpmapAttributeField.setName(SdpConstants.RTPMAP);
 			rtpmapAttributeField.setValue(String.format(Locale.US, "%d %s",
-				audioCodec.type, audioCodec.rtpmap));
+				audioCodec.getType(), audioCodec.getRtpmap()));
 			mediaDescription.addAttribute(rtpmapAttributeField);
 			MediaField mediaField = new MediaField();
 			Vector<String> mediaFormats = new Vector<>();
@@ -317,6 +358,9 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		Vector<String> allMediaFormats = new Vector<>();
 		Vector<MediaDescription> answerMediaDescriptions = new Vector<>();
 		for (SupportedAudioCodec audioCodec : SupportedAudioCodec.values()) {
+			if (!audioCodec.isEnabled()) {
+				continue;
+			}
 			for (MediaDescription mediaDescription : offerMediaDescriptions) {
 				Vector<AttributeField> attributeFields
 					= ((MediaDescription) mediaDescription).getAttributes(false);
@@ -326,16 +370,16 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 							.split(" ")[0].trim());
 						String rtpmap = attributeField.getValue()
 							.split(" ")[1].trim();
-						if ((type >= 0 && type <= 34 && type == audioCodec.type)
-								|| rtpmap.toUpperCase().trim().equals(audioCodec.rtpmap)) {
+						if ((type >= 0 && type <= 34 && type == audioCodec.getType())
+								|| rtpmap.toUpperCase().trim().equals(audioCodec.getRtpmap())) {
 							String codecType = Integer.toString(type);
 							allMediaFormats.add(codecType);
 							MediaDescription cloneMediaDescription
 								= new MediaDescriptionImpl();
 							AttributeField rtpmapAttributeField = new AttributeField();
 							rtpmapAttributeField.setName(SdpConstants.RTPMAP);
-							rtpmapAttributeField.setValue(String.format(Locale.US, "%d %s",
-								type, rtpmap.toUpperCase().trim()));
+							rtpmapAttributeField.setValue(String.format
+								(Locale.US, "%d %s",type, rtpmap.toUpperCase().trim()));
 							cloneMediaDescription.addAttribute(rtpmapAttributeField);
 							MediaField mediaField = new MediaField();
 							Vector<String> mediaFormats = new Vector<>();
@@ -383,8 +427,8 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 
 	interface ExtractionCallback {
 
-		void onConnectionInfoExtracted(String connectionAddress, int port,
-				String rtpmap, int codecType);
+		void onConnectionInfoExtracted(String dataAddress, int dataPort,
+			String controlAddress, int controlPort, String rtpmap, int codecType);
 
 		void onExtractionIgnored(String rtpmap, int codecType);
 
@@ -409,8 +453,9 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		}
 
 		@Override
-		public abstract void onConnectionInfoExtracted(String connectionAddress,
-			int port, String rtpmap, int codecType);
+		public abstract void onConnectionInfoExtracted(String dataAddress,
+			int dataPort, String controlAddress, int controlPort,
+			String rtpmap, int codecType);
 
 		@Override
 		public final void onExtractionIgnored(String rtpmap, int codecType) {
@@ -456,30 +501,35 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 				(roles.get(callId).toString(), "ANSWER") {
 
 			@Override
-			public void onConnectionInfoExtracted(final String answerAddress,
-					final int answerPort, final String answerRtpmap,
+			public void onConnectionInfoExtracted(final String answerDataAddress,
+					final int answerDataPort, final String answerControlAddress,
+					final int answerControlPort, final String answerRtpmap,
 					final int answerCodecType) {
 				extractConnectionInformation(offer, new ExtractionCallbackImpl
 						(CallRole.CALLER.toString(), "OFFER") {
 
 					@Override
-					public void onConnectionInfoExtracted(final String offerAddress,
-							final int offerPort, final String offerRtpmap,
+					public void onConnectionInfoExtracted(final String offerDataAddress,
+							final int offerDataPort, final String offerControlAddress,
+							final int offerControlPort, final String offerRtpmap,
 							final int offerCodecType) {
 						if (offerRtpmap.toLowerCase().trim().equals
 								(answerRtpmap.toLowerCase().trim())) {
 							SupportedAudioCodec supportedAudioCodec = null;
-							for (SupportedAudioCodec supported
+							for (SupportedAudioCodec audioCodec
 									: SupportedAudioCodec.values()) {
-								if (supported.rtpmap.toLowerCase().equals
+								if (!audioCodec.isEnabled()) {
+									continue;
+								}
+								if (audioCodec.getRtpmap().toLowerCase().equals
 									(answerRtpmap.toLowerCase().trim())) {
-									supportedAudioCodec = supported;
+									supportedAudioCodec = audioCodec;
 									break;
 								}
 							}
 							if (supportedAudioCodec == null) {
-								logger.error("%% {} FOUND A CODEC MATCH but said"
-									+ " codec {} is not supported by this plugin!(?!) %%",
+								logger.error("%% {} FOUND A CODEC MATCH but said codec"
+									+ " {} is not supported by this plugin!(?!) %%",
 									AudioSimulationSipuadaPlugin.class.getSimpleName(),
 									answerRtpmap + " - " + answerCodecType);
 								return;
@@ -490,14 +540,18 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 							}
 							switch (roles.get(callId)) {
 								case CALLER:
-									flows.put(supportedAudioCodec,
-										new Session(offerAddress, offerPort,
-											answerAddress, answerPort));
+									streams.put(supportedAudioCodec,
+										new Session(offerDataAddress, offerDataPort,
+											offerControlAddress, offerControlPort,
+											answerDataAddress, answerDataPort,
+											answerControlAddress, answerControlPort));
 									break;
 								case CALLEE:
-									flows.put(supportedAudioCodec,
-										new Session(answerAddress, answerPort,
-											offerAddress, offerPort));
+									streams.put(supportedAudioCodec,
+										new Session(answerDataAddress, answerDataPort,
+											answerControlAddress, answerControlPort,
+											offerDataAddress, offerDataPort,
+											offerControlAddress, offerControlPort));
 									break;
 								}
 						}
@@ -515,45 +569,33 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		logger.debug("%% {} will extract connection info from {} sdp as {}! %%",
 			AudioSimulationSipuadaPlugin.class.getSimpleName(),
 			callback.getSdpType(), callback.getRole());
-		String possibleParentAddress = null;
-		String possibleParentPort = null;
+		String possibleParentDataAddress = null;
 		try {
-			Connection connection = sdp.getConnection();
-			possibleParentPort = sdp.getAttribute("rtcp");
-			if (possibleParentPort != null) {
-				try {
-					Integer.parseInt(possibleParentPort);
-					if (connection != null) {
-						possibleParentAddress = sdp.getConnection().getAddress();
-					}
-				} catch (Throwable anyIssue) {
-					possibleParentAddress = possibleParentPort.split(" ")
-						[possibleParentPort.length() - 1].trim();
-					possibleParentPort = possibleParentPort.split(" ")[0].trim();
-					try {
-						for (int i=0; i<possibleParentAddress.length(); i++) {
-							char thisChar = possibleParentAddress.charAt(i);
-							if (!(thisChar == '.' || Character.isDigit(thisChar))) {
-								throw new Exception();
-							}
-						}
-						Integer.parseInt(possibleParentPort);
-					} catch (Throwable anyOtherIssue) {
-						possibleParentPort = null;
-					}
-				}
+			if (sdp.getConnection() != null) {
+				possibleParentDataAddress = sdp.getConnection().getAddress();
 			} else {
-				if (connection != null) {
-					possibleParentAddress = sdp.getConnection().getAddress();
-				}
+				logger.debug("%% {} could not find parent data connection "
+					+ "address: {}! %%", AudioSimulationSipuadaPlugin
+					.class.getSimpleName(), possibleParentDataAddress);
 			}
-		} catch (Throwable ignore) {
-			logger.debug("%% {} could not find some parent connection info: {}:{}! %%",
-				AudioSimulationSipuadaPlugin.class.getSimpleName(),
-				possibleParentAddress, possibleParentPort);
+		} catch (Throwable anyIssue) {
+			logger.debug("%% {} could not find parent data connection "
+				+ "address: {}! %%", AudioSimulationSipuadaPlugin
+				.class.getSimpleName(), possibleParentDataAddress);
 		}
-		final String parentAddress = possibleParentAddress;
-		final String parentPort = possibleParentPort;
+		final String parentDataAddress = possibleParentDataAddress;
+		String possibleParentControlConnection
+			= retrieveControlConnectionInfo(sdp);
+		final String parentControlAddress = possibleParentControlConnection == null
+			? null : possibleParentControlConnection.split(":")[0].trim().isEmpty()
+			? null : possibleParentControlConnection.split(":")[0];
+		final String parentControlPort = possibleParentControlConnection == null
+			? null : possibleParentControlConnection.split(":")[1].trim().isEmpty()
+			? null : possibleParentControlConnection.split(":")[1];
+		if (possibleParentControlConnection == null) {
+			logger.debug("%% {} could not find parent control connection info! %%",
+				AudioSimulationSipuadaPlugin.class.getSimpleName());
+		}
 		final Vector<MediaDescription> mediaDescriptions;
 		try {
 			mediaDescriptions = sdp.getMediaDescriptions(false);
@@ -583,33 +625,95 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 							rtpmap, codecType);
 						final Connection connection = mediaDescription.getConnection();
 						final Media media = mediaDescription.getMedia();
-						final String connectionAddress;
-						final int connectionPort;
-						if ((parentAddress == null || parentPort == null)
-								&& (connection == null || media == null)) {
+						final String dataAddress;
+						final int dataPort;
+						if (media == null || (parentDataAddress == null
+								&& connection == null)) {
 							callback.onExtractionIgnored(rtpmap, codecType);
 							continue;
 						} else if (connection == null) {
-							connectionAddress = parentAddress;
-							connectionPort = Integer.parseInt(parentPort);
+							dataAddress = parentDataAddress;
+							dataPort = media.getMediaPort();
 							logger.debug("%% RTPMAP line contains no connection info, "
-								+ "so using SDP parent connection: {}:{}! %%",
-								connectionAddress, connectionPort);
+								+ "so considering SDP parent connection: {}:{}! %%",
+								dataAddress, dataPort);
 						} else {
-							connectionAddress = connection.getAddress();
-							connectionPort = media.getMediaPort();
+							dataAddress = connection.getAddress();
+							dataPort = media.getMediaPort();
 							logger.debug("%% RTPMAP line contains connection info, "
-								+ "so using it: {}:{}! %%",
-								connectionAddress, connectionPort);
+								+ "so considering it: {}:{}! %%",
+								dataAddress, dataPort);
 						}
-						callback.onConnectionInfoExtracted
-							(connectionAddress, connectionPort, rtpmap, codecType);
+						String possibleControlConnection
+							= retrieveControlConnectionInfo(mediaDescription);
+						if (possibleControlConnection == null) {
+							logger.debug("%% {} could not find media "
+								+ "control connection info! %%",
+								AudioSimulationSipuadaPlugin.class.getSimpleName());
+						}
+						final String controlAddress = possibleControlConnection == null
+							|| possibleControlConnection.split(":")[0].isEmpty()
+							? parentControlAddress != null ? parentControlAddress
+							: dataAddress : possibleControlConnection.split(":")[0];
+						final int controlPort = possibleControlConnection == null
+							|| possibleControlConnection.split(":")[1].isEmpty()
+							? parentControlPort == null ? dataPort + 1
+							: Integer.parseInt(parentControlPort) : Integer
+							.parseInt(possibleControlConnection.split(":")[1]);
+						callback.onConnectionInfoExtracted(dataAddress, dataPort,
+							controlAddress, controlPort,rtpmap, codecType);
 					}
 				} catch (Throwable anyIssue) {
 					callback.onExtractionPartiallyFailed(anyIssue);
 				}
 			}
 		}
+	}
+
+	private String retrieveControlConnectionInfo(SessionDescription sdp) {
+		try {
+			return retrieveControlConnectionInfo(sdp.getAttribute("rtcp"));
+		} catch (Throwable anyIssue) {
+			return null;
+		}
+	}
+
+	private String retrieveControlConnectionInfo(MediaDescription mediaDescription) {
+		try {
+			return retrieveControlConnectionInfo
+				(mediaDescription.getAttribute("rtcp"));
+		} catch (Throwable anyIssue) {
+			return null;
+		}
+	}
+
+	private String retrieveControlConnectionInfo(String connectionLine) {
+		connectionLine = connectionLine.trim();
+		String controlAddress = "";
+		String controlPort = "";
+		if (connectionLine != null) {
+			try {
+				Integer.parseInt(connectionLine);
+				controlPort = connectionLine;
+			} catch (Throwable anyIssue) {
+				controlAddress = connectionLine.split(" ")
+					[connectionLine.length() - 1].trim();
+				controlPort = connectionLine.split(" ")[0].trim();
+				try {
+					Integer.parseInt(controlPort);
+					for (int i=0; i<controlAddress.length(); i++) {
+						char thisChar = controlAddress.charAt(i);
+						if (!(thisChar == '.'
+								|| Character.isDigit(thisChar))) {
+							throw new Exception();
+						}
+					}
+				} catch (Throwable anyOtherIssue) {
+					return null;
+				}
+			}
+		}
+		return String.format(Locale.US, "%s:%s", controlAddress, controlPort);
 	}
 
 	@Override
@@ -620,12 +724,16 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 			+ "Role: {{}}\nOffer: {{}}\nAnswer: {{}} ^^",
 			AudioSimulationSipuadaPlugin.class.getSimpleName(),
 			callId, roles.get(callId), offer, answer);
-		for (SupportedAudioCodec supportedAudioCodec : flows.keySet()) {
-			Session session = flows.get(supportedAudioCodec);
-			logger.info("^^ Should setup a {} flow from "
-				+ "{}:{} (local) to {}:{} (remote)! ^^", supportedAudioCodec,
-				session.getLocalAddress(), session.getLocalPort(),
-				session.getRemoteAddress(), session.getRemotePort());
+		for (SupportedAudioCodec supportedAudioCodec : streams.keySet()) {
+			Session session = streams.get(supportedAudioCodec);
+			logger.info("^^ Should setup a {} *data* stream from "
+				+ "{}:{} (origin) to {}:{} (destination)! ^^", supportedAudioCodec,
+				session.getLocalDataAddress(), session.getLocalDataPort(),
+				session.getRemoteDataAddress(), session.getRemoteDataPort());
+			logger.info("^^ Should setup a {} *control* stream from "
+				+ "{}:{} (origin) to {}:{} (destination)! ^^", supportedAudioCodec,
+				session.getLocalControlAddress(), session.getLocalControlPort(),
+				session.getRemoteControlAddress(), session.getRemoteControlPort());
 		}
 		return true;
 	}
@@ -635,12 +743,16 @@ public class AudioSimulationSipuadaPlugin implements SipuadaPlugin {
 		records.remove(callId);
 		logger.info("^^ {} performing session tear down in context of call {}... ^^",
 			AudioSimulationSipuadaPlugin.class.getSimpleName(), callId);
-		for (SupportedAudioCodec supportedAudioCodec : flows.keySet()) {
-			Session session = flows.get(supportedAudioCodec);
-			logger.info("^^ Should terminate {} flow from "
-				+ "{}:{} (local) to {}:{} (remote)! ^^", supportedAudioCodec,
-				session.getLocalAddress(), session.getLocalPort(),
-				session.getRemoteAddress(), session.getRemotePort());
+		for (SupportedAudioCodec supportedAudioCodec : streams.keySet()) {
+			Session session = streams.get(supportedAudioCodec);
+			logger.info("^^ Should terminate {} *data* stream from "
+				+ "{}:{} (origin) to {}:{} (destination)! ^^", supportedAudioCodec,
+				session.getLocalDataAddress(), session.getLocalDataPort(),
+				session.getRemoteDataAddress(), session.getRemoteDataPort());
+			logger.info("^^ Should terminate {} *control* stream from "
+				+ "{}:{} (origin) to {}:{} (destination)! ^^", supportedAudioCodec,
+				session.getLocalControlAddress(), session.getLocalControlPort(),
+				session.getRemoteControlAddress(), session.getRemoteControlPort());
 		}
 		return true;
 	}
